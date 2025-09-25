@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>우리동네 안심지도 - 관악구</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- [오류 해결!] 카카오맵 API 로드 시 autoload=false 옵션을 추가하여, 스크립트 실행 순서 문제를 해결합니다. -->
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=813478df5f3bb1453679d63a8f78c1f1&libraries=services,clusterer,drawing&autoload=false"></script>
+    <style>
+        #map { width: 100%; height: 100%; }
+        .active-filter { background-color: #2563eb; color: white; font-weight: bold; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div class="flex h-screen">
+        <!-- 사이드바 -->
+        <aside class="w-64 bg-white p-6 shadow-lg flex flex-col z-10">
+            <h1 class="text-2xl font-bold text-gray-800 mb-2">우리동네 안심지도</h1>
+            <h2 class="text-lg font-semibold text-blue-600 mb-6">관악구편</h2>
+            <nav class="space-y-3">
+                <button id="filter-disabled" class="w-full text-left p-3 rounded-lg hover:bg-gray-200 transition-colors filter-btn">♿ 장애인</button>
+                <button id="filter-elderly" class="w-full text-left p-3 rounded-lg hover:bg-gray-200 transition-colors filter-btn">🧓 독거노인</button>
+                <button id="filter-recipient" class="w-full text-left p-3 rounded-lg hover:bg-gray-200 transition-colors filter-btn">🏠 기초생활수급자</button>
+            </nav>
+            <div class="mt-auto pt-6 border-t">
+                 <p class="text-sm text-gray-600">데이터를 수집하여 지도를 채워주세요.</p>
+            </div>
+        </aside>
+        <!-- 지도 영역 -->
+        <main class="flex-1">
+            <div id="map"></div>
+        </main>
+    </div>
+    <script>
+        // --- 데이터베이스 (이 부분은 나중에 실제 데이터로 채워주세요) ---
+        const locations = {
+            disabled: [{ name: '늘푸른 장애인 복지관', lat: 37.47951, lng: 126.94125 }, { name: '희망 재활 센터', lat: 37.47213, lng: 126.95581 }],
+            elderly: [{ name: '상록수 노인 복지회관', lat: 37.48512, lng: 126.95888 }, { name: '효사랑 경로당', lat: 37.47545, lng: 126.92921 }],
+            recipient: [{ name: '관악구청 (주민센터)',  lat: 37.47824, lng: 126.95156 }]
+        };
+        const dangerZonePathData = [ {lat: 37.4760, lng: 126.9420}, {lat: 37.4775, lng: 126.9460}, {lat: 37.4750, lng: 126.9480}, {lat: 37.4735, lng: 126.9440} ];
+
+        // --- 지도 로직 ---
+        let map, currentMarkers = [], currentPolygon = null, currentInfowindow = null, activeFilter = null;
+
+        // [오류 해결!] kakao.maps.load()를 사용하여 API가 완전히 로드된 후 지도 관련 코드를 실행합니다.
+        kakao.maps.load(function() {
+            const mapContainer = document.getElementById('map');
+            const mapOption = { center: new kakao.maps.LatLng(37.4782, 126.9515), level: 5 };
+            map = new kakao.maps.Map(mapContainer, mapOption);
+
+            document.querySelectorAll('.filter-btn').forEach(button => {
+                const filterType = button.id.replace('filter-', '');
+                button.addEventListener('click', () => {
+                    if (activeFilter === filterType) {
+                        clearAll();
+                        button.classList.remove('active-filter');
+                        activeFilter = null;
+                    } else {
+                        displayData(filterType);
+                        activeFilter = filterType;
+                    }
+                });
+            });
+        });
+        
+        function clearAll() {
+            currentMarkers.forEach(marker => marker.setMap(null));
+            currentMarkers = [];
+            if (currentPolygon) currentPolygon.setMap(null);
+            if (currentInfowindow) currentInfowindow.close();
+        }
+        
+        function displayData(filterType) {
+            clearAll();
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active-filter'));
+            document.getElementById(`filter-${filterType}`).classList.add('active-filter');
+            locations[filterType].forEach(loc => {
+                const position = new kakao.maps.LatLng(loc.lat, loc.lng);
+                const marker = new kakao.maps.Marker({ map: map, position: position, title: loc.name });
+                currentMarkers.push(marker);
+                const infowindow = new kakao.maps.InfoWindow({ content: `<div style="padding:5px;font-size:12px;">${loc.name}</div>`, removable: true });
+                kakao.maps.event.addListener(marker, 'click', function() {
+                    if (currentInfowindow) currentInfowindow.close();
+                    infowindow.open(map, marker);
+                    currentInfowindow = infowindow;
+                });
+            });
+            if (filterType === 'disabled') {
+                const polygonPath = dangerZonePathData.map(p => new kakao.maps.LatLng(p.lat, p.lng));
+                currentPolygon = new kakao.maps.Polygon({
+                    path: polygonPath,
+                    strokeWeight: 3, strokeColor: '#FF0000', strokeOpacity: 0.8,
+                    strokeStyle: 'longdash', fillColor: '#FF0000', fillOpacity: 0.3
+                });
+                currentPolygon.setMap(map);
+            }
+            if (locations[filterType].length > 0) {
+                 map.panTo(new kakao.maps.LatLng(locations[filterType][0].lat, locations[filterType][0].lng));
+            }
+        }
+    </script>
+</body>
+</html>
+
